@@ -23,7 +23,6 @@ stocks['day'] = pd.to_datetime(stocks.loc[:, 'Date']).dt.day
 
 
 #map the stocks according to airline and date
-#I HATE PYTHON I DONT KNOW ANY OF THIS
 
 stocks.loc[(stocks['airline'] == 'Virgin America') & (stockss['created_dt'] == 17)]
 

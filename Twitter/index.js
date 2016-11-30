@@ -4,7 +4,7 @@ var async = require('async');
 var utf8 = require('utf8');
 
 var excelbuilder = require('msexcel-builder');
-var workbook = excelbuilder.createWorkbook('./', 'data.xlsx');
+var workbook = excelbuilder.createWorkbook('./', 'usairways_25.xlsx');
 
 var T = new Twit({
   consumer_key:         'PG8wBb9aLTh76OsHoJ3nd0QRr',
@@ -14,10 +14,9 @@ var T = new Twit({
   timeout_ms:           60*1000,
 });
 
-// we will look at 5 tweets from 5 different days (25 total)
 // each tweet contains headers:
 // 'date', 'author', 'predicted sentiment', 'observed sentiment', 'text'
-var sheet = workbook.createSheet('sheet', 5, 30);
+var sheet = workbook.createSheet('sheet', 5, 106);
 var headers = ['', 'Date', 'Author', 'Predicted Sentiment', 'Observed Sentiment', 'Text'];
 
 for (var i = 1; i < 6; i++) {
@@ -29,21 +28,21 @@ for (var i = 1; i < 6; i++) {
 sheet.width(5, 180);
 
 var queries = [
-    ['2016-11-19', '2016-11-20'],
-    ['2016-11-20', '2016-11-21'],
-    ['2016-11-21', '2016-11-22'],
     ['2016-11-22', '2016-11-23'],
-    ['2016-11-23', '2016-11-24']
+    ['2016-11-23', '2016-11-24'],
+    ['2016-11-24', '2016-11-25'],
+    ['2016-11-25', '2016-11-26'],
+    ['2016-11-26', '2016-11-27']
 ];
 
 async.map(queries, (query, callback) => {
     var params = {
-        q: '@americanair',
+        q: '@USAirways',
         since: query[0],
         until: query[1],
         exclude: 'retweets',
         result_type: 'recent',
-        count: 5
+        count: 5 //count=5 for small dataset, change this to 20 for the large dataset
     };
 
     T.get('search/tweets', params, function(err, data, response) {
@@ -56,8 +55,9 @@ async.map(queries, (query, callback) => {
             var obj = data['statuses'][i];
 
             var created_at = obj['created_at'];
-            var user = obj['user']['name'];
+            var user = utf8.encode(obj['user']['name']);
             var text = utf8.encode(obj['text']);
+
             arr.push({
                 created_at : created_at,
                 user : user,

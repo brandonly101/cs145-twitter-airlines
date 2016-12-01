@@ -7,97 +7,64 @@ Created on Mon Nov 28 01:26:59 2016
 
 import pandas as pd
 import nltk
+import re
+from nltk.corpus import stopwords
 
-tweets = pd.read_csv("../Kaggle/Tweets.csv")
+tweets = pd.read_csv("Tweets.csv")
+
+#stopwords = insignificant words
+stops = set(stopwords.words('english'))
 
 #separate into positive, neutral, and negative tweets
 pos_tweets = tweets[tweets.airline_sentiment == "positive"]
 neu_tweets = tweets[tweets.airline_sentiment == "neutral"]
 neg_tweets = tweets[tweets.airline_sentiment == "negative"]
 
-#extract the texts into a list of tweets
-list_pos_tweets = pos_tweets.text.tolist()
-final_pos_text = ""
+def extract_onewords(tweets, min_support = 1):
+    #extract the texts into a list of tweets
+    list_tweets = tweets.text.tolist()
+    final_text = ""
 
-#append each tweet to make a giant string
-for i in range(len(list_pos_tweets)):
-    final_pos_text = final_pos_text + " " + list_pos_tweets[i]
+    #append each tweet to make a giant string
+    for i in range(len(list_tweets)):
+        list_tweets[i] = list_tweets[i].lower()
+        final_text = final_text + " " + list_tweets[i]
+    
+    #regular expressions
+    final_text = re.sub(r"\@[a-z]+", "", final_text) #remove the @jetblue...
+    final_text = re.sub(r"http\S+", "", final_text) #remove http....
+    final_text = re.sub(r"&lt;3", "heartemojii", final_text) #heartemojii
+    final_text = re.sub(r"&amp", "&", final_text)
+    final_text = re.sub(r"[^a-z0-9\s]", "", final_text) #remove most punctuation
 
-#decode and tokenize for natural language processing
-final_pos_text = final_pos_text.decode('utf8')
-pos_tokens = nltk.word_tokenize(final_pos_text)
-good = nltk.Text(pos_tokens)
+    #decode and tokenize for natural language processing
+    final_text = final_text.decode('utf8')
+    tokens = nltk.word_tokenize(final_text)
 
-#most common pairs of words
-# print "\n *** MOST COMMON GOOD WORD COLLOCATIONS ***\n"
-# good.collocations()
+    #get rid of stopwords
+    dummy1 = [] 
+    for token in tokens:
+      if token not in stops:
+          dummy1.append(token)
+  
+    tokens = dummy1
+    
+    final_nltk = nltk.Text(tokens)
 
-#Frequency distribution of the most common words
-fdist1 = nltk.FreqDist(good)
-
-#==============================================================================
-# #extract the texts into a list of tweets
-# list_pos_tweets = pos_tweets.text.tolist()
-# final_pos_text = ""
-#
-# #append each tweet to make a giant string
-# for i in range(len(list_pos_tweets)):
-#     final_pos_text = final_pos_text + " " + list_pos_tweets[i]
-#
-# #decode and tokenize for natural language processing
-# final_pos_text = final_pos_text.decode('utf8')
-# pos_tokens = nltk.word_tokenize(final_pos_text)
-# good = nltk.Text(pos_tokens)
-#
-# #most common pairs of words
-# good.collocations()
-#
-# #Frequency distribution of the most common words
-# fdist1 = nltk.FreqDist(good)
-#==============================================================================
-fdist1.most_common(100)
-
-#extract the texts into a list of tweets
-list_neu_tweets = neu_tweets.text.tolist()
-final_neu_text = ""
-
-#append each tweet to make a giant string
-for i in range(len(list_neu_tweets)):
-    final_neu_text = final_neu_text + " " + list_neu_tweets[i]
-
-#decode and tokenize for natural language processing
-final_neu_text = final_neu_text.decode('utf8')
-neu_tokens = nltk.word_tokenize(final_neu_text)
-ok = nltk.Text(neu_tokens)
-
-#most common pairs of words
-# print "\n *** MOST COMMON OK WORD COLLOCATIONS ***\n"
-# ok.collocations()
-
-#Frequency distribution of the most common words
-fdist2 = nltk.FreqDist(ok)
-fdist2.most_common(100)
-
-#extract the texts into a list of tweets
-list_neg_tweets = neg_tweets.text.tolist()
-final_neg_text = ""
-
-#append each tweet to make a giant string
-for i in range(len(list_neg_tweets)):
-    final_neg_text = final_neg_text + " " + list_neg_tweets[i]
-
-#decode and tokenize for natural language processing
-final_neg_text = final_neg_text.decode('utf8')
-neg_tokens = nltk.word_tokenize(final_neg_text)
-bad = nltk.Text(neg_tokens)
-
-#most common pairs of words
-# print "\n *** MOST COMMON BAD WORD COLLOCATIONS ***\n"
-# bad.collocations()
-
-#Frequency distribution of the most common words
-fdist3 = nltk.FreqDist(bad)
-fdist3.most_common(100)
+    #Frequency distribution of the most common words
+    fdist = nltk.FreqDist(final_nltk)
+    print fdist.most_common(100)
+    
+    #return a dictionary of only the words with support more than min support
+    dic = dict(fdist)
+    dic = { k:v for k, v in dic.items() if v >= min_support }
+    
+    return (dic)
+    
+    
+oneword_pos = extract_onewords(pos_tweets)
+oneword_neu = extract_onewords(neu_tweets)
+oneword_neg = extract_onewords(neg_tweets)
 
 ################################################################################
 # Scoring System

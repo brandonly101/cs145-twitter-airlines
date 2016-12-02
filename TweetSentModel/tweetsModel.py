@@ -9,6 +9,24 @@ import pandas as pd
 import nltk
 import re
 from nltk.corpus import stopwords
+from nltk.collocations import BigramCollocationFinder, TrigramCollocationFinder
+
+
+#converts a string to tokens
+def string2tokens(string):
+    #regular expressions
+    string = re.sub(r"\@[a-z]+", "", string) #remove the @jetblue...
+    string = re.sub(r"http\S+", "", string) #remove http....
+    string = re.sub(r"&lt;3", "heartemojii", string) #heartemojii
+    string = re.sub(r"&amp", "&", string)
+    string = re.sub(r"[^a-z0-9\s]", "", string) #remove most punctuation
+    
+    string = string.decode('utf8')
+    tokens = nltk.word_tokenize(string)
+    return(tokens)
+
+
+
 
 tweets = pd.read_csv("Tweets.csv")
 
@@ -19,6 +37,9 @@ stops = set(stopwords.words('english'))
 pos_tweets = tweets[tweets.airline_sentiment == "positive"]
 neu_tweets = tweets[tweets.airline_sentiment == "neutral"]
 neg_tweets = tweets[tweets.airline_sentiment == "negative"]
+
+
+
 
 def extract_onewords(tweets, min_support = 1):
     #extract the texts into a list of tweets
@@ -53,7 +74,7 @@ def extract_onewords(tweets, min_support = 1):
 
     #Frequency distribution of the most common words
     fdist = nltk.FreqDist(final_nltk)
-    print fdist.most_common(100)
+    #print fdist.most_common(100)
     
     #return a dictionary of only the words with support more than min support
     dic = dict(fdist)
@@ -62,9 +83,103 @@ def extract_onewords(tweets, min_support = 1):
     return (dic)
     
     
+    
 oneword_pos = extract_onewords(pos_tweets)
 oneword_neu = extract_onewords(neu_tweets)
 oneword_neg = extract_onewords(neg_tweets)
+
+
+
+bigram_measures = nltk.collocations.BigramAssocMeasures()
+trigram_measures = nltk.collocations.TrigramAssocMeasures()
+
+
+
+def extract_bigrams(tweets, min_support = 1):
+    #extract the texts into a list of tweets
+    list_tweets = tweets.text.tolist()
+    final_text = ""
+
+    #append each tweet to make a giant string
+    for i in range(len(list_tweets)):
+        list_tweets[i] = list_tweets[i].lower()
+        final_text = final_text + " " + list_tweets[i]
+    
+    #regular expressions
+    final_text = re.sub(r"\@[a-z]+", "", final_text) #remove the @jetblue...
+    final_text = re.sub(r"http\S+", "", final_text) #remove http....
+    final_text = re.sub(r"&lt;3", "heartemojii", final_text) #heartemojii
+    final_text = re.sub(r"&amp", "&", final_text)
+    final_text = re.sub(r"[^a-z0-9\s]", "", final_text) #remove most punctuation
+
+    #decode and tokenize for natural language processing
+    final_text = final_text.decode('utf8')
+    tokens = nltk.word_tokenize(final_text)
+    final_nltk = nltk.Text(tokens)
+
+    finder = BigramCollocationFinder.from_words(final_nltk)
+    
+    #only bigrams that satisfy minimum support
+    finder.apply_freq_filter(min_support)
+    
+    finder = finder.ngram_fd.items()
+    
+    bigrams = {z[0]:z[1] for z in finder}
+    
+    return (bigrams)
+
+
+
+bigrams_pos = extract_bigrams(pos_tweets)
+bigrams_neu = extract_bigrams(neu_tweets)
+bigrams_neg = extract_bigrams(neg_tweets)
+
+
+
+
+def extract_trigrams(tweets, min_support = 1):
+    #extract the texts into a list of tweets
+    list_tweets = tweets.text.tolist()
+    final_text = ""
+
+    #append each tweet to make a giant string
+    for i in range(len(list_tweets)):
+        list_tweets[i] = list_tweets[i].lower()
+        final_text = final_text + " " + list_tweets[i]
+    
+    #regular expressions
+    final_text = re.sub(r"\@[a-z]+", "", final_text) #remove the @jetblue...
+    final_text = re.sub(r"http\S+", "", final_text) #remove http....
+    final_text = re.sub(r"&lt;3", "heartemojii", final_text) #heartemojii
+    final_text = re.sub(r"&amp", "&", final_text)
+    final_text = re.sub(r"[^a-z0-9\s]", "", final_text) #remove most punctuation
+
+    #decode and tokenize for natural language processing
+    final_text = final_text.decode('utf8')
+    tokens = nltk.word_tokenize(final_text)
+    final_nltk = nltk.Text(tokens)
+
+    finder = TrigramCollocationFinder.from_words(final_nltk)
+    
+    #only bigrams that satisfy minimum support
+    finder.apply_freq_filter(min_support)
+    
+    finder = finder.ngram_fd.items()
+    
+    trigrams = {z[0]:z[1] for z in finder}
+    
+    return (trigrams)
+    
+    
+
+trigrams_pos = extract_trigrams(pos_tweets)
+trigrams_neu = extract_trigrams(neu_tweets)
+trigrams_neg = extract_trigrams(neg_tweets)
+
+
+#return the 10 n-grams with the highest PMI
+#finder.nbest(bigram_measures.pmi, 10)
+
 
 ################################################################################
 # Scoring System

@@ -13,6 +13,8 @@ from collections import Counter
 from nltk.corpus import stopwords
 from nltk.collocations import BigramCollocationFinder, TrigramCollocationFinder
 
+stops = set(stopwords.words('english'))
+
 # Converts a string to tokens
 def string2tokens(string):
     #regular expressions
@@ -36,17 +38,8 @@ def extract_onewords(tweets, min_support = 1):
     for i in range(len(list_tweets)):
         list_tweets[i] = list_tweets[i].lower()
         final_text = final_text + " " + list_tweets[i]
-    
-    #regular expressions
-    final_text = re.sub(r"\@[a-z]+", "", final_text) #remove the @jetblue...
-    final_text = re.sub(r"http\S+", "", final_text) #remove http....
-    final_text = re.sub(r"&lt;3", "heartemojii", final_text) #heartemojii
-    final_text = re.sub(r"&amp", "&", final_text)
-    final_text = re.sub(r"[^a-z0-9\s]", "", final_text) #remove most punctuation
 
-    #decode and tokenize for natural language processing
-    final_text = final_text.decode('utf8')
-    tokens = nltk.word_tokenize(final_text)
+    tokens = string2tokens(final_text)
 
     #get rid of stopwords
     dummy1 = [] 
@@ -77,16 +70,7 @@ def extract_bigrams(tweets, min_support = 1):
         list_tweets[i] = list_tweets[i].lower()
         final_text = final_text + " " + list_tweets[i]
 
-    #regular expressions
-    final_text = re.sub(r"\@[a-z]+", "", final_text) #remove the @jetblue...
-    final_text = re.sub(r"http\S+", "", final_text) #remove http....
-    final_text = re.sub(r"&lt;3", "heartemojii", final_text) #heartemojii
-    final_text = re.sub(r"&amp", "&", final_text)
-    final_text = re.sub(r"[^a-z0-9\s]", "", final_text) #remove most punctuation
-
-    #decode and tokenize for natural language processing
-    final_text = final_text.decode('utf8')
-    tokens = nltk.word_tokenize(final_text)
+    tokens = string2tokens(final_text)
     final_nltk = nltk.Text(tokens)
 
     finder = BigramCollocationFinder.from_words(final_nltk)
@@ -110,16 +94,8 @@ def extract_trigrams(tweets, min_support = 1):
         list_tweets[i] = list_tweets[i].lower()
         final_text = final_text + " " + list_tweets[i]
 
-    #regular expressions
-    final_text = re.sub(r"\@[a-z]+", "", final_text) #remove the @jetblue...
-    final_text = re.sub(r"http\S+", "", final_text) #remove http....
-    final_text = re.sub(r"&lt;3", "heartemojii", final_text) #heartemojii
-    final_text = re.sub(r"&amp", "&", final_text)
-    final_text = re.sub(r"[^a-z0-9\s]", "", final_text) #remove most punctuation
+    tokens = string2tokens(final_text)
 
-    #decode and tokenize for natural language processing
-    final_text = final_text.decode('utf8')
-    tokens = nltk.word_tokenize(final_text)
     final_nltk = nltk.Text(tokens)
 
     finder = TrigramCollocationFinder.from_words(final_nltk)
@@ -179,8 +155,8 @@ class TweetScoreMachine:
         # Factor in trigrams if the option is set.
         if (trigrams):
             for sent in self.sents:
-                for i in range(0, len(tweet_tokens) - 1):
-                    trigram = (tweet_tokens[i], tweet_tokens[i+1])
+                for i in range(0, len(tweet_tokens) - 2):
+                    trigram = (tweet_tokens[i], tweet_tokens[i+1], tweet_tokens[i+2])
                     scores[sent] += self.trigram_dist[sent][trigram] / self.n_trigram_dist[sent] * trigram_factor
 
         # Normalize the scores.
@@ -202,6 +178,11 @@ def find_sentiment(score):
             max_val = v
             max_sent = k
 
+    # if (abs(score['pos'] - score['neg']) < 0.1 and score['pos'] > 0.3 and score['neg'] > 0.3):
+    #     return "neutral"
+    if (score['pos'] == 0.0 and score['neu'] == 0.0 and score['neg']):
+        return "neutral"
+
     if (max_sent == "pos"):
         return "positive"
     elif (max_sent == "neu"):
@@ -215,55 +196,60 @@ def find_sentiment(score):
 
 # Read in the tweets from Kaggle.
 tweets = pd.read_csv("Kaggle/Tweets.csv")
+tweets_df = pd.read_csv("tweets_stocks_testing.csv")
 
-# stopwords = insignificant words
-stops = set(stopwords.words('english'))
+# Global parameters to play with...
+min_supp_onewords = 1
+min_supp_bigrams = 1
+min_supp_trigrams = 1
+use_bigrams = 1
+use_trigrams = 1
+bigram_factor = 2
+trigram_factor = 3
 
 #separate into positive, neutral, and negative tweets
 pos_tweets = tweets[tweets.airline_sentiment == "positive"]
 neu_tweets = tweets[tweets.airline_sentiment == "neutral"]
 neg_tweets = tweets[tweets.airline_sentiment == "negative"]
 
-min_supp = 3
+oneword_pos = extract_onewords(pos_tweets, min_supp_onewords)
+oneword_neu = extract_onewords(neu_tweets, min_supp_onewords)
+oneword_neg = extract_onewords(neg_tweets, min_supp_onewords)
 
-oneword_pos = extract_onewords(pos_tweets, min_supp)
-oneword_neu = extract_onewords(neu_tweets, min_supp)
-oneword_neg = extract_onewords(neg_tweets, min_supp)
+bigrams_pos = extract_bigrams(pos_tweets, min_supp_bigrams)
+bigrams_neu = extract_bigrams(neu_tweets, min_supp_bigrams)
+bigrams_neg = extract_bigrams(neg_tweets, min_supp_bigrams)
 
-bigram_measures = nltk.collocations.BigramAssocMeasures()
-trigram_measures = nltk.collocations.TrigramAssocMeasures()
-
-bigrams_pos = extract_bigrams(pos_tweets)
-bigrams_neu = extract_bigrams(neu_tweets)
-bigrams_neg = extract_bigrams(neg_tweets)
-
-trigrams_pos = extract_trigrams(pos_tweets)
-trigrams_neu = extract_trigrams(neu_tweets)
-trigrams_neg = extract_trigrams(neg_tweets)
+trigrams_pos = extract_trigrams(pos_tweets, min_supp_trigrams)
+trigrams_neu = extract_trigrams(neu_tweets, min_supp_trigrams)
+trigrams_neg = extract_trigrams(neg_tweets, min_supp_trigrams)
 
 fd = {'pos': oneword_pos, 'neu': oneword_neu, 'neg': oneword_neg}
 bg = {'pos': bigrams_pos, 'neu': bigrams_neu, 'neg': bigrams_neg}
 tg = {'pos': trigrams_pos, 'neu': trigrams_neu, 'neg': trigrams_neg}
 
 score_machine = TweetScoreMachine(fd, bg, tg)
-tweets_mat = tweets.as_matrix()
 
-f = open("file.txt", "w")
+# f = open("file.txt", "w")
 count_match = 0
-n_tweets = len(tweets_mat)
+n_tweets = len(tweets_df)
 for i in range(0, n_tweets):
-    tweet_text = tweets.iloc[i].text
-    tweet_sentiment = tweets.iloc[i].airline_sentiment
+    tweet_text = tweets_df.loc[i]['Text']
+    # tweet_sentiment = tweets_df.loc[i]['airline_sentiment']
     tweet_tokens = string2tokens(tweet_text)
-    score = score_machine.get_score(tweet_tokens, 1, 1)
-    tweet_line_print = "\" (should be: " + tweet_sentiment + ") " + str(score)
+    score = score_machine.get_score(tweet_tokens, use_bigrams, use_trigrams, bigram_factor, trigram_factor)
+    # tweet_line_print = "(should be: " + tweet_sentiment + ") | (is actually: " + find_sentiment(score) + ") " + str(score)
+    # tweet_line_print = "(" + find_sentiment(score) + ") " + str(score) + " | \"" + tweet_text + "\""
     # print tweet_line_print
-    print >> f, tweet_line_print
+    tweets_df.loc[i, 'Predicted.Sentiment'] = find_sentiment(score)
+
+    # print >> f, tweet_line_print
 
     # Count the matching sentiments...
-    if (find_sentiment(score) == tweet_sentiment):
-        count_match += 1
+    # if (find_sentiment(score) == tweet_sentiment):
+    #     count_match += 1
 
-print "Accuracy: " + str(count_match / n_tweets * 100.0) + "%"
+# print "Min. Support: " + str(min_supp_onewords_to_use) + "; Accuracy: " + str(count_match / n_tweets * 100.0) + "%"
+# f.close()
 
-f.close()
+tweets_df.to_csv('tweets_stocks_testing.csv', index=False, sep=',')

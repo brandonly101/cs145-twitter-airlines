@@ -16,6 +16,7 @@ from nltk.collocations import BigramCollocationFinder, TrigramCollocationFinder
 # Converts a string to tokens
 def string2tokens(string):
     #regular expressions
+    string = string.lower()
     string = re.sub(r"\@[a-z]+", "", string) #remove the @jetblue...
     string = re.sub(r"http\S+", "", string) #remove http....
     string = re.sub(r"&lt;3", "heartemojii", string) #heartemojii
@@ -25,16 +26,6 @@ def string2tokens(string):
     string = string.decode('utf8')
     tokens = nltk.word_tokenize(string)
     return(tokens)
-
-tweets = pd.read_csv("Kaggle/Tweets.csv")
-
-#stopwords = insignificant words
-stops = set(stopwords.words('english'))
-
-#separate into positive, neutral, and negative tweets
-pos_tweets = tweets[tweets.airline_sentiment == "positive"]
-neu_tweets = tweets[tweets.airline_sentiment == "neutral"]
-neg_tweets = tweets[tweets.airline_sentiment == "negative"]
 
 def extract_onewords(tweets, min_support = 1):
     #extract the texts into a list of tweets
@@ -76,15 +67,6 @@ def extract_onewords(tweets, min_support = 1):
 
     return Counter(dic)
 
-min_supp = 3
-
-oneword_pos = extract_onewords(pos_tweets, min_supp)
-oneword_neu = extract_onewords(neu_tweets, min_supp)
-oneword_neg = extract_onewords(neg_tweets, min_supp)
-
-bigram_measures = nltk.collocations.BigramAssocMeasures()
-trigram_measures = nltk.collocations.TrigramAssocMeasures()
-
 def extract_bigrams(tweets, min_support = 1):
     #extract the texts into a list of tweets
     list_tweets = tweets.text.tolist()
@@ -94,7 +76,7 @@ def extract_bigrams(tweets, min_support = 1):
     for i in range(len(list_tweets)):
         list_tweets[i] = list_tweets[i].lower()
         final_text = final_text + " " + list_tweets[i]
-    
+
     #regular expressions
     final_text = re.sub(r"\@[a-z]+", "", final_text) #remove the @jetblue...
     final_text = re.sub(r"http\S+", "", final_text) #remove http....
@@ -108,19 +90,15 @@ def extract_bigrams(tweets, min_support = 1):
     final_nltk = nltk.Text(tokens)
 
     finder = BigramCollocationFinder.from_words(final_nltk)
-    
+
     #only bigrams that satisfy minimum support
     finder.apply_freq_filter(min_support)
-    
-    finder = finder.ngram_fd.items()
-    
-    bigrams = {z[0]:z[1] for z in finder}
-    
-    return Counter(bigrams)
 
-bigrams_pos = extract_bigrams(pos_tweets)
-bigrams_neu = extract_bigrams(neu_tweets)
-bigrams_neg = extract_bigrams(neg_tweets)
+    finder = finder.ngram_fd.items()
+
+    bigrams = {z[0]:z[1] for z in finder}
+
+    return Counter(bigrams)
 
 def extract_trigrams(tweets, min_support = 1):
     #extract the texts into a list of tweets
@@ -131,7 +109,7 @@ def extract_trigrams(tweets, min_support = 1):
     for i in range(len(list_tweets)):
         list_tweets[i] = list_tweets[i].lower()
         final_text = final_text + " " + list_tweets[i]
-    
+
     #regular expressions
     final_text = re.sub(r"\@[a-z]+", "", final_text) #remove the @jetblue...
     final_text = re.sub(r"http\S+", "", final_text) #remove http....
@@ -145,22 +123,15 @@ def extract_trigrams(tweets, min_support = 1):
     final_nltk = nltk.Text(tokens)
 
     finder = TrigramCollocationFinder.from_words(final_nltk)
-    
+
     #only bigrams that satisfy minimum support
     finder.apply_freq_filter(min_support)
-    
+
     finder = finder.ngram_fd.items()
-    
+
     trigrams = {z[0]:z[1] for z in finder}
-    
+
     return Counter(trigrams)
-
-trigrams_pos = extract_trigrams(pos_tweets)
-trigrams_neu = extract_trigrams(neu_tweets)
-trigrams_neg = extract_trigrams(neg_tweets)
-
-#return the 10 n-grams with the highest PMI
-#finder.nbest(bigram_measures.pmi, 10)
 
 ################################################################################
 # Scoring System
@@ -196,24 +167,21 @@ class TweetScoreMachine:
         # add the normalized points of it to the total score.
         for token in tweet_tokens:
             for sent in self.sents:
-                if (self.freq_dist[sent][token] != 0.0):
-                    scores[sent] += self.n_freq_dist[sent] / self.freq_dist[sent][token]
+                scores[sent] += self.freq_dist[sent][token] / self.n_freq_dist[sent]
 
         # Factor in bigrams if the option is set.
         if (bigrams):
             for sent in self.sents:
                 for i in range(0, len(tweet_tokens) - 1):
-                    bigram = tweet_tokens[i] + tweet_tokens[i+1]
-                    if (self.bigram_dist[sent][bigram] != 0.0):
-                        scores[sent] += self.n_bigram_dist[sent] / self.bigram_dist[sent][bigram] * bigram_factor
+                    bigram = (tweet_tokens[i], tweet_tokens[i+1])
+                    scores[sent] += self.bigram_dist[sent][bigram] / self.n_bigram_dist[sent] * bigram_factor
 
         # Factor in trigrams if the option is set.
         if (trigrams):
             for sent in self.sents:
                 for i in range(0, len(tweet_tokens) - 1):
-                    trigram = tweet_tokens[i] + tweet_tokens[i+1]
-                    if (self.trigram_dist[sent][trigram] != 0.0):
-                        scores[sent] += self.n_trigram_dist[sent] / self.trigram_dist[sent][trigram] * trigram_factor
+                    trigram = (tweet_tokens[i], tweet_tokens[i+1])
+                    scores[sent] += self.trigram_dist[sent][trigram] / self.n_trigram_dist[sent] * trigram_factor
 
         # Normalize the scores.
         total_score = 0.0
@@ -226,23 +194,76 @@ class TweetScoreMachine:
         # Return as a tuple.
         return scores
 
+def find_sentiment(score):
+    max_val = 0.0
+    max_sent = ""
+    for k, v in score.iteritems():
+        if (max_val < v):
+            max_val = v
+            max_sent = k
+
+    if (max_sent == "pos"):
+        return "positive"
+    elif (max_sent == "neu"):
+        return "neutral"
+    else:
+        return "negative"
+
+################################################################################
+# Procedural Code
+################################################################################
+
+# Read in the tweets from Kaggle.
+tweets = pd.read_csv("Kaggle/Tweets.csv")
+
+# stopwords = insignificant words
+stops = set(stopwords.words('english'))
+
+#separate into positive, neutral, and negative tweets
+pos_tweets = tweets[tweets.airline_sentiment == "positive"]
+neu_tweets = tweets[tweets.airline_sentiment == "neutral"]
+neg_tweets = tweets[tweets.airline_sentiment == "negative"]
+
+min_supp = 3
+
+oneword_pos = extract_onewords(pos_tweets, min_supp)
+oneword_neu = extract_onewords(neu_tweets, min_supp)
+oneword_neg = extract_onewords(neg_tweets, min_supp)
+
+bigram_measures = nltk.collocations.BigramAssocMeasures()
+trigram_measures = nltk.collocations.TrigramAssocMeasures()
+
+bigrams_pos = extract_bigrams(pos_tweets)
+bigrams_neu = extract_bigrams(neu_tweets)
+bigrams_neg = extract_bigrams(neg_tweets)
+
+trigrams_pos = extract_trigrams(pos_tweets)
+trigrams_neu = extract_trigrams(neu_tweets)
+trigrams_neg = extract_trigrams(neg_tweets)
+
 fd = {'pos': oneword_pos, 'neu': oneword_neu, 'neg': oneword_neg}
 bg = {'pos': bigrams_pos, 'neu': bigrams_neu, 'neg': bigrams_neg}
 tg = {'pos': trigrams_pos, 'neu': trigrams_neu, 'neg': trigrams_neg}
 
-scorer = TweetScoreMachine(fd, bg, tg)
-# test_sentence = "annoying"
-# test_score = scorer.get_score(nltk.word_tokenize(test_sentence))
-# print test_score
+score_machine = TweetScoreMachine(fd, bg, tg)
+tweets_mat = tweets.as_matrix()
 
 f = open("file.txt", "w")
-
-tweets_mat = tweets.as_matrix()
-for i in range(0, 169):
+count_match = 0
+n_tweets = len(tweets_mat)
+for i in range(0, n_tweets):
     tweet_text = tweets.iloc[i].text
     tweet_sentiment = tweets.iloc[i].airline_sentiment
-    tweet_line_print = "\" (should be: " + tweet_sentiment + ") " + str(scorer.get_score(string2tokens(tweet_text), 1, 1))
+    tweet_tokens = string2tokens(tweet_text)
+    score = score_machine.get_score(tweet_tokens, 1, 1)
+    tweet_line_print = "\" (should be: " + tweet_sentiment + ") " + str(score)
     # print tweet_line_print
     print >> f, tweet_line_print
+
+    # Count the matching sentiments...
+    if (find_sentiment(score) == tweet_sentiment):
+        count_match += 1
+
+print "Accuracy: " + str(count_match / n_tweets * 100.0) + "%"
 
 f.close()

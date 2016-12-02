@@ -12,7 +12,8 @@ source <- "yahoo"
 #start <- "2005-01-01"
 #end <- "2006-01-01"
 
-#returns the data frame of stock information
+#returns the data frame of stock information with relevant time frames
+#start & end date have YEAR-MONTH-DAY format
 stock_grabber <- function(airline, stock_symbol, start, end) {
   stockdf <- as.data.frame(getSymbols(stock_symbol, src=source, from = start, to = end, env = NULL))
   
@@ -23,6 +24,9 @@ stock_grabber <- function(airline, stock_symbol, start, end) {
   stockdf <- stockdf[,c("Airline","Stock Symbol","Date", "Open", "High", "Low", "Close", "Volume", "Adj Close")]
 }
 
+
+
+#write as CSV
 csv_name <- cat(airline, "Stocks.csv", sep="")
 write.csv(stockdf, file = csv_name, row.names = FALSE)
 

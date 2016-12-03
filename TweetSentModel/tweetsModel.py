@@ -15,19 +15,18 @@ from nltk.collocations import BigramCollocationFinder, TrigramCollocationFinder
 
 stops = set(stopwords.words('english'))
 
-# Converts a string to tokens
 def string2tokens(string):
-    #regular expressions
+    # regular expressions
     string = string.lower()
-    string = re.sub(r"\@[a-z]+", "", string) #remove the @jetblue...
-    string = re.sub(r"http\S+", "", string) #remove http....
-    string = re.sub(r"&lt;3", "heartemojii", string) #heartemojii
+    string = re.sub(r"\@[a-z]+", "", string)  # remove the @jetblue...
+    string = re.sub(r"http\S+", "", string)  # remove http....
+    string = re.sub(r"&lt;3", "heartemojii", string)  # heartemojii
     string = re.sub(r"&amp", "&", string)
-    string = re.sub(r"[^a-z0-9\s]", "", string) #remove most punctuation
-    
+    string = re.sub(r"[^a-z0-9\s]", "", string)  # remove most punctuation
+
     string = string.decode('utf8')
     tokens = nltk.word_tokenize(string)
-    return(tokens)
+    return (tokens)
 
 def extract_onewords(tweets, min_support = 1):
     #extract the texts into a list of tweets
@@ -125,12 +124,15 @@ class TweetScoreMachine:
         self.n_trigram_dist = Counter()
 
         for sent in self.sents:
-            for key, count in fd[sent].iteritems():
-                self.n_freq_dist[sent] += count
-            for key, count in bg[sent].iteritems():
-                self.n_bigram_dist[sent] += count
-            for key, count in tg[sent].iteritems():
-                self.n_trigram_dist[sent] += count
+            # for key, count in fd[sent].iteritems():
+            #     self.n_freq_dist[sent] += count
+            # for key, count in bg[sent].iteritems():
+            #     self.n_bigram_dist[sent] += count
+            # for key, count in tg[sent].iteritems():
+            #     self.n_trigram_dist[sent] += count
+            self.n_freq_dist[sent] = max(fd[sent].values())
+            self.n_bigram_dist[sent] = max(bg[sent].values())
+            self.n_trigram_dist[sent] = max(tg[sent].values())
 
     # Get the score of a list of tokens. Scoring is based on the frequency of a negative in each of the bags
     # (i.e. if a word appears 172 times in a bag, then that word will count for 172 points.
@@ -180,8 +182,10 @@ def find_sentiment(score):
 
     # if (abs(score['pos'] - score['neg']) < 0.1 and score['pos'] > 0.3 and score['neg'] > 0.3):
     #     return "neutral"
-    if (score['pos'] == 0.0 and score['neu'] == 0.0 and score['neg']):
+    if (score['pos'] == 0.0 and score['neu'] == 0.0 and score['neg'] == 0.0):
         return "neutral"
+    # if (score['pos'] < 0.35 and score['neu'] < 0.35 and score['neg'] < 0.35):
+    #     return "neutral"
 
     if (max_sent == "pos"):
         return "positive"
@@ -194,9 +198,13 @@ def find_sentiment(score):
 # Procedural Code
 ################################################################################
 
+file_dir_to_read =""
+file_to_read = "tweets_stocks_testing"
+
 # Read in the tweets from Kaggle.
 tweets = pd.read_csv("Kaggle/Tweets.csv")
-tweets_df = pd.read_csv("tweets_stocks_testing.csv")
+# tweets_df = pd.read_csv(file_dir_to_read + file_to_read + ".csv")
+tweets_df = tweets
 
 # Global parameters to play with...
 min_supp_onewords = 1
@@ -234,22 +242,31 @@ score_machine = TweetScoreMachine(fd, bg, tg)
 count_match = 0
 n_tweets = len(tweets_df)
 for i in range(0, n_tweets):
-    tweet_text = tweets_df.loc[i]['Text']
-    # tweet_sentiment = tweets_df.loc[i]['airline_sentiment']
-    tweet_tokens = string2tokens(tweet_text)
-    score = score_machine.get_score(tweet_tokens, use_bigrams, use_trigrams, bigram_factor, trigram_factor)
+    tweet_text = tweets_df.loc[i, 'text']
+    score = score_machine.get_score(string2tokens(tweet_text),
+                                    use_bigrams,
+                                    use_trigrams,
+                                    bigram_factor,
+                                    trigram_factor
+                                    )
     # tweet_line_print = "(should be: " + tweet_sentiment + ") | (is actually: " + find_sentiment(score) + ") " + str(score)
     # tweet_line_print = "(" + find_sentiment(score) + ") " + str(score) + " | \"" + tweet_text + "\""
     # print tweet_line_print
+    tweet_sentiment = tweets_df.loc[i, 'airline_sentiment']
+    tweets_df.loc[i, 'Actual.Sentiment'] = tweet_sentiment
     tweets_df.loc[i, 'Predicted.Sentiment'] = find_sentiment(score)
+    tweets_df.loc[i, 'Score.Positive'] = score['pos']
+    tweets_df.loc[i, 'Score.Neutral'] = score['neu']
+    tweets_df.loc[i, 'Score.Negative'] = score['neg']
 
     # print >> f, tweet_line_print
 
     # Count the matching sentiments...
-    # if (find_sentiment(score) == tweet_sentiment):
-    #     count_match += 1
+    if (find_sentiment(score) == tweet_sentiment):
+        count_match += 1
 
-# print "Min. Support: " + str(min_supp_onewords_to_use) + "; Accuracy: " + str(count_match / n_tweets * 100.0) + "%"
+print "Min. Support: " + str(1) + "; Accuracy: " + str(count_match / n_tweets * 100.0) + "%"
 # f.close()
 
-tweets_df.to_csv('tweets_stocks_testing.csv', index=False, sep=',')
+# tweets_df.to_csv('tweets_stocks_testing.csv', index=False, sep=',')
+# tweets_df.to_csv("Output/" + file_to_read + "_new.csv", index=False, sep=',')
